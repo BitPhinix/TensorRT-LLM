@@ -2230,6 +2230,7 @@ class MLA(nn.Module):
         all_reduce_params: Optional[AllReduceParams] = None,
         latent_cache_gen: Optional[torch.Tensor] = None,
         lora_params: Optional[dict] = None,
+        **kwargs,
     ) -> torch.Tensor:
 
         attn_output = self.create_output(hidden_states,
