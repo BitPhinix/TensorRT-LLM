@@ -154,9 +154,9 @@ def iterate_hf_lora(
             hf_module = m.group(3) + "." + module_name
         if hf_module not in hf_modules:
             hf_module = module_name
-            assert hf_module in hf_modules, (
-                f"hf_module {hf_module} is not in supported list {hf_modules}"
-            )
+            assert (
+                hf_module in hf_modules
+            ), f"hf_module {hf_module} is not in supported list {hf_modules}"
 
         is_lora_a_or_b = m.group(8) is not None
         if is_lora_a_or_b:
@@ -658,6 +658,7 @@ class LoraManager(object):
         "moe_router": 16,
         "mlp_router": 17,
         "mlp_gate_up": 18,
+        "attn_kv_a_mqa": 19,
     }
 
     def __init__(

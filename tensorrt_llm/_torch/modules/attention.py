@@ -1219,7 +1219,8 @@ class MLA(nn.Module):
                      hidden_states: torch.Tensor,
                      attn_metadata: AttentionMetadata,
                      output: torch.Tensor,
-                     latent_cache_gen: Optional[torch.Tensor] = None) -> None:
+                     latent_cache_gen: Optional[torch.Tensor] = None,
+                     lora_params: Optional[dict] = None) -> None:
         """
         Forward pass for the MLA module.
 
@@ -1244,15 +1245,23 @@ class MLA(nn.Module):
             position_ids = position_ids[..., :num_tokens]
 
         if self.is_lite:
-            compressed_kv, k_pe = self.kv_a_proj_with_mqa(hidden_states).split(
-                [self.kv_lora_rank, self.qk_rope_head_dim], -1)
+            compressed_kv, k_pe = self.kv_a_proj_with_mqa(
+                hidden_states,
+                lora_params=lora_params,
+                layer_idx=self.layer_idx,
+            ).split([self.kv_lora_rank, self.qk_rope_head_dim], -1)
             compressed_kv = self.kv_a_layernorm(compressed_kv)
             q = hidden_states
         else:
             q, compressed_kv, k_pe = self.kv_a_proj_with_mqa(
-                hidden_states).split([
-                    self.q_lora_rank, self.kv_lora_rank, self.qk_rope_head_dim
-                ], -1)
+                hidden_states,
+                lora_params=lora_params,
+                layer_idx=self.layer_idx,
+            ).split([
+                self.q_lora_rank,
+                self.kv_lora_rank,
+                self.qk_rope_head_dim,
+            ], -1)
 
             q, compressed_kv = maybe_execute_in_parallel(
                 lambda: self.q_a_layernorm(q),
@@ -1325,7 +1334,8 @@ class MLA(nn.Module):
     def forward_impl_with_dsa(self, position_ids: Optional[torch.Tensor],
                               hidden_states: torch.Tensor,
                               attn_metadata: AttentionMetadata,
-                              output: torch.Tensor) -> None:
+                              output: torch.Tensor,
+                              lora_params: Optional[dict] = None) -> None:
         """
         Forward pass for the MLA module with DSA (always in MQA mode).
 
@@ -1349,10 +1359,15 @@ class MLA(nn.Module):
             position_ids = position_ids[..., :num_tokens]
 
         q, compressed_kv, k_pe, indexer_k = self.kv_a_proj_with_mqa(
-            hidden_states).split([
-                self.q_lora_rank, self.kv_lora_rank, self.qk_rope_head_dim,
-                self.indexer.head_dim
-            ], -1)
+            hidden_states,
+            lora_params=lora_params,
+            layer_idx=self.layer_idx,
+        ).split([
+            self.q_lora_rank,
+            self.kv_lora_rank,
+            self.qk_rope_head_dim,
+            self.indexer.head_dim,
+        ], -1)
 
         # TODO: possibly overlap/fuse q_a_rmsnorm + kv_a_rmsnorm + indexer.k_layernorm?
         q, compressed_kv = maybe_execute_in_parallel(
@@ -2214,16 +2229,20 @@ class MLA(nn.Module):
         attn_metadata: AttentionMetadata,
         all_reduce_params: Optional[AllReduceParams] = None,
         latent_cache_gen: Optional[torch.Tensor] = None,
+        lora_params: Optional[dict] = None,
     ) -> torch.Tensor:
 
         attn_output = self.create_output(hidden_states,
                                          attn_metadata.num_contexts)
         if self.is_dsa:
-            self.forward_impl_with_dsa(position_ids,
-                                       hidden_states,
-                                       attn_metadata,
-                                       output=attn_output)
-        elif self.register_to_config:
+            self.forward_impl_with_dsa(
+                position_ids,
+                hidden_states,
+                attn_metadata,
+                output=attn_output,
+                lora_params=lora_params,
+            )
+        elif self.register_to_config and not bool(lora_params):
             torch.ops.trtllm.mla_custom_op_inplace(hidden_states, position_ids,
                                                    self.layer_idx_str,
                                                    attn_output,
@@ -2233,7 +2252,8 @@ class MLA(nn.Module):
                               hidden_states,
                               attn_metadata,
                               output=attn_output,
-                              latent_cache_gen=latent_cache_gen)
+                              latent_cache_gen=latent_cache_gen,
+                              lora_params=lora_params)
 
         if self.enable_helix_test and self.mapping.has_cp_helix():
             # note: for allowing testing Helix parallelism, we ensure that
