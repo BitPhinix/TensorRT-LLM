@@ -788,6 +788,24 @@ def create_py_executor_instance(
             # all layers have the same number of KV heads
             num_kv_attention_heads = num_kv_attention_heads_per_layer[0]
 
+        kv_a_lora_out_features = None
+        if "attn_kv_a_mqa" in lora_config.lora_target_modules:
+            pretrained_config = model_engine.model.model_config.pretrained_config
+            kv_lora_rank = getattr(pretrained_config, "kv_lora_rank", None)
+            qk_rope_head_dim = getattr(pretrained_config, "qk_rope_head_dim",
+                                       None)
+            if kv_lora_rank is None or qk_rope_head_dim is None:
+                raise ValueError(
+                    "attn_kv_a_mqa requires kv_lora_rank and qk_rope_head_dim in pretrained_config"
+                )
+            kv_a_lora_out_features = kv_lora_rank + qk_rope_head_dim
+            q_lora_rank = getattr(pretrained_config, "q_lora_rank", None)
+            if q_lora_rank is not None:
+                kv_a_lora_out_features += q_lora_rank
+            index_head_dim = getattr(pretrained_config, "index_head_dim", None)
+            if index_head_dim is not None:
+                kv_a_lora_out_features += index_head_dim
+
         lora_modules = LoraModule.create_lora_modules(
             lora_module_names=lora_config.lora_target_modules,
             hidden_size=model_binding_config.hidden_size,
@@ -796,7 +814,8 @@ def create_py_executor_instance(
             num_kv_attention_heads=num_kv_attention_heads,
             attention_head_size=model_binding_config.head_size,
             tp_size=mapping.tp_size,
-            num_experts=num_experts)
+            num_experts=num_experts,
+            kv_a_lora_out_features=kv_a_lora_out_features)
         model_binding_config.use_lora_plugin = True
         model_binding_config.lora_modules = lora_modules
         model_binding_config.max_lora_rank = lora_config.max_lora_rank

@@ -110,6 +110,7 @@ hf_modules_to_trtllm_modules = {
     "k_proj": "attn_k",
     "qkv_proj": "attn_qkv",
     "query_key_value": "attn_qkv",
+    "kv_a_proj_with_mqa": "attn_kv_a_mqa",
     "o_proj": "attn_dense",
     "dense": "attn_dense",
     "gate_proj": "mlp_h_to_4h",

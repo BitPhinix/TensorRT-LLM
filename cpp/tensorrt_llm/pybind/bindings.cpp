@@ -224,7 +224,7 @@ PYBIND11_MODULE(TRTLLM_PYBIND_MODULE, m)
         .def_static("create_lora_modules", &tr::LoraModule::createLoraModules, py::arg("lora_module_names"),
             py::arg("hidden_size"), py::arg("mlp_hidden_size"), py::arg("num_attention_heads"),
             py::arg("num_kv_attention_heads"), py::arg("attention_head_size"), py::arg("tp_size") = 1,
-            py::arg("num_experts") = 0);
+            py::arg("num_experts") = 0, py::arg("kv_a_lora_out_features") = py::none());
 
     py::class_<tc::QuantMode>(m, "QuantMode")
         .def_static("none", &tc::QuantMode::none)

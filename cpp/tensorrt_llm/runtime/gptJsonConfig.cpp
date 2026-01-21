@@ -431,6 +431,7 @@ void parseLora(ModelConfig& modelConfig, Json const& json, Json const& pluginCon
                 auto const kvLoraRank = parseJsonFieldOptional<SizeType32>(pretrainedConfig, "kv_lora_rank");
                 auto const qkRopeHeadDim = parseJsonFieldOptional<SizeType32>(pretrainedConfig, "qk_rope_head_dim");
                 auto const qLoraRank = parseJsonFieldOptional<SizeType32>(pretrainedConfig, "q_lora_rank");
+                auto const indexHeadDim = parseJsonFieldOptional<SizeType32>(pretrainedConfig, "index_head_dim");
                 auto const indexerHeadDim = parseJsonFieldOptional<SizeType32>(pretrainedConfig, "indexer_head_dim");
                 if (kvLoraRank.has_value() && qkRopeHeadDim.has_value())
                 {
@@ -439,9 +440,10 @@ void parseLora(ModelConfig& modelConfig, Json const& json, Json const& pluginCon
                     {
                         kvALoraOutFeatures.value() += qLoraRank.value();
                     }
-                    if (indexerHeadDim.has_value())
+                    auto const indexHead = indexerHeadDim.has_value() ? indexerHeadDim : indexHeadDim;
+                    if (indexHead.has_value())
                     {
-                        kvALoraOutFeatures.value() += indexerHeadDim.value();
+                        kvALoraOutFeatures.value() += indexHead.value();
                     }
                 }
             }
