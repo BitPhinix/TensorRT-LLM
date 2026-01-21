@@ -18,6 +18,7 @@
 
 #include "tensorrt_llm/runtime/common.h"
 #include "tensorrt_llm/runtime/iTensor.h"
+#include <optional>
 #include <vector>
 
 namespace tensorrt_llm::runtime
@@ -50,6 +51,7 @@ public:
         kMOE_ROUTER = 16,
         kMLP_ROUTER = 17,
         kMLP_GATE_UP = 18,
+        kATTN_KV_A_MQA = 19,
     };
 
     explicit constexpr LoraModule(ModuleType const& t, SizeType32 inDim, SizeType32 outDim, bool inDimFirst,
@@ -192,7 +194,8 @@ public:
 
     static std::vector<LoraModule> createLoraModules(std::vector<std::string> const& loraModuleNames,
         SizeType32 hiddenSize, SizeType32 mlpHiddenSize, SizeType32 numAttentionHeads, SizeType32 numKvAttentionHeads,
-        SizeType32 attentionHeadSize, SizeType32 tpSize, SizeType32 numExperts);
+        SizeType32 attentionHeadSize, SizeType32 tpSize, SizeType32 numExperts,
+        std::optional<SizeType32> kvALoraOutFeatures = std::nullopt);
 
     static ModuleType constexpr toModuleType(std::string_view const& name)
     {
@@ -234,6 +237,8 @@ public:
             return ModuleType::kMLP_ROUTER;
         else if (name == "mlp_gate_up")
             return ModuleType::kMLP_GATE_UP;
+        else if (name == "attn_kv_a_mqa")
+            return ModuleType::kATTN_KV_A_MQA;
         else
             return ModuleType::kINVALID;
     }
@@ -261,6 +266,7 @@ public:
         case ModuleType::kMOE_ROUTER: return "moe_router";
         case ModuleType::kMLP_ROUTER: return "mlp_router";
         case ModuleType::kMLP_GATE_UP: return "mlp_gate_up";
+        case ModuleType::kATTN_KV_A_MQA: return "attn_kv_a_mqa";
         case ModuleType::kINVALID: return "INVALID";
         }
         return "INVALID";

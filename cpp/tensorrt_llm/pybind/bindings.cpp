@@ -207,7 +207,8 @@ PYBIND11_MODULE(TRTLLM_PYBIND_MODULE, m)
         .value("MOE_GATE", tr::LoraModule::ModuleType::kMOE_GATE)
         .value("MOE_ROUTER", tr::LoraModule::ModuleType::kMOE_ROUTER)
         .value("MLP_ROUTER", tr::LoraModule::ModuleType::kMLP_ROUTER)
-        .value("MLP_GATE_UP", tr::LoraModule::ModuleType::kMLP_GATE_UP);
+        .value("MLP_GATE_UP", tr::LoraModule::ModuleType::kMLP_GATE_UP)
+        .value("ATTN_KV_A_MQA", tr::LoraModule::ModuleType::kATTN_KV_A_MQA);
 
     py::class_<tr::LoraModule>(m, "LoraModule")
         .def(py::init<tr::LoraModule::ModuleType, SizeType32, SizeType32, bool, bool, SizeType32, SizeType32>(),
