@@ -33,6 +33,10 @@ class LoraModuleType(IntEnum):
 
     MLP_ROUTER = 17  # MLP router
     MLP_GATE_UP = 18  # Combined gate and up projections
+    
+    ATTENTION_KV_A_MQA = 19  # DeepSeek V3/V3.2 kv_a_proj_with_mqa projection
+    ATTENTION_KV_B_PROJ = 20  # MLA kv_b_proj projection
+    ATTENTION_WQ_B = 21  # MLA q_b_proj projection (HF: wq_b)
 
     def __str__(self):
         """Return the name of the enum value."""
@@ -61,7 +65,9 @@ class LoraModuleType(IntEnum):
         """Check if this is an attention module type."""
         return self in {
             self.ATTENTION_QKV, self.ATTENTION_Q, self.ATTENTION_K,
-            self.ATTENTION_V, self.ATTENTION_DENSE, self.CROSS_ATTENTION_QKV,
+            self.ATTENTION_V, self.ATTENTION_DENSE,
+            self.ATTENTION_KV_A_MQA, self.ATTENTION_KV_B_PROJ,
+            self.ATTENTION_WQ_B, self.CROSS_ATTENTION_QKV,
             self.CROSS_ATTENTION_Q, self.CROSS_ATTENTION_K,
             self.CROSS_ATTENTION_V, self.CROSS_ATTENTION_DENSE
         }

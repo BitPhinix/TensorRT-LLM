@@ -207,7 +207,10 @@ PYBIND11_MODULE(TRTLLM_PYBIND_MODULE, m)
         .value("MOE_GATE", tr::LoraModule::ModuleType::kMOE_GATE)
         .value("MOE_ROUTER", tr::LoraModule::ModuleType::kMOE_ROUTER)
         .value("MLP_ROUTER", tr::LoraModule::ModuleType::kMLP_ROUTER)
-        .value("MLP_GATE_UP", tr::LoraModule::ModuleType::kMLP_GATE_UP);
+        .value("MLP_GATE_UP", tr::LoraModule::ModuleType::kMLP_GATE_UP)
+        .value("ATTN_KV_A_MQA", tr::LoraModule::ModuleType::kATTN_KV_A_MQA)
+        .value("ATTN_KV_B_PROJ", tr::LoraModule::ModuleType::kATTN_KV_B_PROJ)
+        .value("ATTN_WQ_B", tr::LoraModule::ModuleType::kATTN_WQ_B);
 
     py::class_<tr::LoraModule>(m, "LoraModule")
         .def(py::init<tr::LoraModule::ModuleType, SizeType32, SizeType32, bool, bool, SizeType32, SizeType32>(),
@@ -223,7 +226,9 @@ PYBIND11_MODULE(TRTLLM_PYBIND_MODULE, m)
         .def_static("create_lora_modules", &tr::LoraModule::createLoraModules, py::arg("lora_module_names"),
             py::arg("hidden_size"), py::arg("mlp_hidden_size"), py::arg("num_attention_heads"),
             py::arg("num_kv_attention_heads"), py::arg("attention_head_size"), py::arg("tp_size") = 1,
-            py::arg("num_experts") = 0);
+            py::arg("num_experts") = 0, py::arg("kv_a_lora_out_features") = py::none(),
+            py::arg("kv_b_lora_in_features") = py::none(), py::arg("kv_b_lora_out_features") = py::none(),
+            py::arg("wq_b_lora_in_features") = py::none(), py::arg("wq_b_lora_out_features") = py::none());
 
     py::class_<tc::QuantMode>(m, "QuantMode")
         .def_static("none", &tc::QuantMode::none)

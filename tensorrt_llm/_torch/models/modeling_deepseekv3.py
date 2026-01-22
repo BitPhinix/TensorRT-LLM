@@ -61,7 +61,7 @@ from ..modules.gated_mlp import GatedMLP
 from ..modules.linear import Linear, TensorParallelMode, WeightsLoadingConfig
 from ..modules.multi_stream_utils import maybe_execute_in_parallel
 from ..modules.rms_norm import RMSNorm
-from ..peft.lora.layer import LoraLayer
+from ..peft.lora.layer import LoraLayer, LoraModuleType
 from ..speculative import SpecMetadata
 from ..utils import (AuxStreamType, EventType, Fp4QuantizedTensor,
                      create_lm_head_tp_mapping)
@@ -660,7 +660,7 @@ class DeepseekV3Linear(Linear):
                      layer_idx: Optional[int] | None = None):
         num_tokens = input.shape[0]
         if (not self.has_any_quant and 1 <= num_tokens <= 16
-                and get_sm_version() not in [120, 121]):
+                and get_sm_version() not in [120, 121] and not bool(lora_params)):
             output = torch.ops.trtllm.dsv3_fused_a_gemm_op(
                 input, self.weight.t(), bias, None)
         else:
@@ -702,16 +702,20 @@ class DeepseekV3Attention(MLA):
                          aux_stream=aux_stream,
                          mapping_with_cp=mapping_with_cp,
                          reduce_output=reduce_output)
+        kv_a_out_features = (self.kv_lora_rank + self.qk_rope_head_dim +
+                             (self.q_lora_rank if not self.is_lite else 0))
+        self.kv_a_lora = LoraLayer([LoraModuleType.ATTENTION_KV_A_MQA],
+                                   [kv_a_out_features])
         self.kv_a_proj_with_mqa = DeepseekV3Linear(
             config.hidden_size,
-            self.kv_lora_rank + self.qk_rope_head_dim +
-            (self.q_lora_rank if not self.is_lite else 0),
+            kv_a_out_features,
             bias=False,
             dtype=config.torch_dtype,
             quant_config=model_config.get_quant_config(),
             skip_create_weights_in_init=model_config.
             skip_create_weights_in_init,
-            use_custom_cublas_mm=True)
+            use_custom_cublas_mm=True,
+            lora=self.kv_a_lora)
 
 
 class DeepseekV32Attention(MLA):
@@ -752,16 +756,21 @@ class DeepseekV32Attention(MLA):
 
         # For DeepseekV32, the kv_a_proj_with_mqa includes:
         # q_a_proj + kv_a_proj_with_mqa + indexer.wk
+        kv_a_out_features = (self.kv_lora_rank + self.qk_rope_head_dim +
+                             (self.q_lora_rank if not self.is_lite else 0) +
+                             self.indexer.head_dim)
+        self.kv_a_lora = LoraLayer([LoraModuleType.ATTENTION_KV_A_MQA],
+                                   [kv_a_out_features])
         self.kv_a_proj_with_mqa = DeepseekV3Linear(
             config.hidden_size,
-            self.kv_lora_rank + self.qk_rope_head_dim + self.q_lora_rank +
-            self.indexer.head_dim,
+            kv_a_out_features,
             bias=False,
             dtype=config.torch_dtype,
             quant_config=model_config.get_quant_config(),
             skip_create_weights_in_init=model_config.
             skip_create_weights_in_init,
-            use_custom_cublas_mm=True)
+            use_custom_cublas_mm=True,
+            lora=self.kv_a_lora)
 
     def post_load_weights(self):
         """
@@ -1648,6 +1657,7 @@ class DeepseekV3Model(DecoderModel):
                 attn_metadata=attn_metadata,
                 residual=residual,
                 spec_metadata=spec_metadata,
+                **kwargs,
             )
 
         return hidden_states

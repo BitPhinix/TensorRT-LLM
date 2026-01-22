@@ -21,7 +21,10 @@ namespace tensorrt_llm::runtime
 
 std::vector<LoraModule> LoraModule::createLoraModules(std::vector<std::string> const& loraModuleNames,
     SizeType32 hiddenSize, SizeType32 mlpHiddenSize, SizeType32 numAttentionHeads, SizeType32 numKvAttentionHeads,
-    SizeType32 attentionHeadSize, SizeType32 tpSize, SizeType32 numExperts)
+    SizeType32 attentionHeadSize, SizeType32 tpSize, SizeType32 numExperts,
+    std::optional<SizeType32> kvALoraOutFeatures, std::optional<SizeType32> kvBLoraInFeatures,
+    std::optional<SizeType32> kvBLoraOutFeatures, std::optional<SizeType32> wqBLoraInFeatures,
+    std::optional<SizeType32> wqBLoraOutFeatures)
 {
     auto const hidden = hiddenSize * tpSize;
     auto const mlpHidden = mlpHiddenSize * tpSize;
@@ -49,6 +52,31 @@ std::vector<LoraModule> LoraModule::createLoraModules(std::vector<std::string> c
         case ModuleType::kCROSS_ATTN_K:
         case ModuleType::kATTN_V:
         case ModuleType::kCROSS_ATTN_V: modules.emplace_back(t, hidden, kvOutSize, false, true, -1, 0); break;
+        case ModuleType::kATTN_KV_A_MQA:
+            if (!kvALoraOutFeatures.has_value())
+            {
+                throw std::runtime_error(
+                    "attn_kv_a_mqa requires kv_lora_rank and qk_rope_head_dim in config to determine output dim");
+            }
+            modules.emplace_back(t, hidden, kvALoraOutFeatures.value(), false, true, -1, 0);
+            break;
+        case ModuleType::kATTN_KV_B_PROJ:
+            if (!kvBLoraInFeatures.has_value() || !kvBLoraOutFeatures.has_value())
+            {
+                throw std::runtime_error(
+                    "attn_kv_b_proj requires kv_lora_rank, qk_nope_head_dim, and v_head_dim in config");
+            }
+            modules.emplace_back(
+                t, kvBLoraInFeatures.value(), kvBLoraOutFeatures.value(), false, true, -1, 0);
+            break;
+        case ModuleType::kATTN_WQ_B:
+            if (!wqBLoraInFeatures.has_value() || !wqBLoraOutFeatures.has_value())
+            {
+                throw std::runtime_error(
+                    "attn_wq_b requires q_lora_rank, qk_nope_head_dim, and qk_rope_head_dim in config");
+            }
+            modules.emplace_back(t, wqBLoraInFeatures.value(), wqBLoraOutFeatures.value(), false, true, -1, 0);
+            break;
         case ModuleType::kATTN_DENSE:
         case ModuleType::kCROSS_ATTN_DENSE: modules.emplace_back(t, hidden, hidden, false, true, 1, -1); break;
         case ModuleType::kMLP_H_TO_4H: modules.emplace_back(t, hidden, mlpHidden, false, true, -1, 0); break;

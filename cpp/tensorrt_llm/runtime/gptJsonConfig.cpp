@@ -422,9 +422,71 @@ void parseLora(ModelConfig& modelConfig, Json const& json, Json const& pluginCon
         auto const numExperts = hasMoE
             ? json.at("pretrained_config").at("moe").at("num_experts").template get<SizeType32>()
             : SizeType32{0};
+        std::optional<SizeType32> kvALoraOutFeatures = std::nullopt;
+        std::optional<SizeType32> kvBLoraInFeatures = std::nullopt;
+        std::optional<SizeType32> kvBLoraOutFeatures = std::nullopt;
+        std::optional<SizeType32> wqBLoraInFeatures = std::nullopt;
+        std::optional<SizeType32> wqBLoraOutFeatures = std::nullopt;
+        if (std::find(loraModuleNames.begin(), loraModuleNames.end(), "attn_kv_a_mqa") != loraModuleNames.end())
+        {
+            if (json.contains("pretrained_config"))
+            {
+                auto const& pretrainedConfig = json.at("pretrained_config");
+                auto const kvLoraRank = parseJsonFieldOptional<SizeType32>(pretrainedConfig, "kv_lora_rank");
+                auto const qkRopeHeadDim = parseJsonFieldOptional<SizeType32>(pretrainedConfig, "qk_rope_head_dim");
+                auto const qLoraRank = parseJsonFieldOptional<SizeType32>(pretrainedConfig, "q_lora_rank");
+                auto const indexHeadDim = parseJsonFieldOptional<SizeType32>(pretrainedConfig, "index_head_dim");
+                auto const indexerHeadDim = parseJsonFieldOptional<SizeType32>(pretrainedConfig, "indexer_head_dim");
+                if (kvLoraRank.has_value() && qkRopeHeadDim.has_value())
+                {
+                    kvALoraOutFeatures = kvLoraRank.value() + qkRopeHeadDim.value();
+                    if (qLoraRank.has_value())
+                    {
+                        kvALoraOutFeatures.value() += qLoraRank.value();
+                    }
+                    auto const indexHead = indexerHeadDim.has_value() ? indexerHeadDim : indexHeadDim;
+                    if (indexHead.has_value())
+                    {
+                        kvALoraOutFeatures.value() += indexHead.value();
+                    }
+                }
+            }
+        }
+        if (std::find(loraModuleNames.begin(), loraModuleNames.end(), "attn_kv_b_proj") != loraModuleNames.end()
+            || std::find(loraModuleNames.begin(), loraModuleNames.end(), "attn_wq_b") != loraModuleNames.end())
+        {
+            if (json.contains("pretrained_config"))
+            {
+                auto const& pretrainedConfig = json.at("pretrained_config");
+                auto const kvLoraRank = parseJsonFieldOptional<SizeType32>(pretrainedConfig, "kv_lora_rank");
+                auto const qLoraRank = parseJsonFieldOptional<SizeType32>(pretrainedConfig, "q_lora_rank");
+                auto const qkNopeHeadDim = parseJsonFieldOptional<SizeType32>(pretrainedConfig, "qk_nope_head_dim");
+                auto const qkRopeHeadDim = parseJsonFieldOptional<SizeType32>(pretrainedConfig, "qk_rope_head_dim");
+                auto const vHeadDim = parseJsonFieldOptional<SizeType32>(pretrainedConfig, "v_head_dim");
+                auto const numHeads = modelConfig.getNbHeads() * tensorParallelism;
+
+                if (kvLoraRank.has_value())
+                {
+                    kvBLoraInFeatures = kvLoraRank.value();
+                }
+                if (qLoraRank.has_value())
+                {
+                    wqBLoraInFeatures = qLoraRank.value();
+                }
+                if (qkNopeHeadDim.has_value() && vHeadDim.has_value())
+                {
+                    kvBLoraOutFeatures = numHeads * (qkNopeHeadDim.value() + vHeadDim.value());
+                }
+                if (qkNopeHeadDim.has_value() && qkRopeHeadDim.has_value())
+                {
+                    wqBLoraOutFeatures = numHeads * (qkNopeHeadDim.value() + qkRopeHeadDim.value());
+                }
+            }
+        }
         modelConfig.setLoraModules(LoraModule::createLoraModules(loraTargetModules.value(), modelConfig.getHiddenSize(),
             modelConfig.getMlpHiddenSize(), modelConfig.getNbHeads(), numKvHeads, modelConfig.getSizePerHead(),
-            tensorParallelism, numExperts));
+            tensorParallelism, numExperts, kvALoraOutFeatures, kvBLoraInFeatures, kvBLoraOutFeatures,
+            wqBLoraInFeatures, wqBLoraOutFeatures));
     }
 
     modelConfig.setMaxLoraRank(loraMaxRank);
