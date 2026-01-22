@@ -789,22 +789,53 @@ def create_py_executor_instance(
             num_kv_attention_heads = num_kv_attention_heads_per_layer[0]
 
         kv_a_lora_out_features = None
-        if "attn_kv_a_mqa" in lora_config.lora_target_modules:
+        kv_b_lora_in_features = None
+        kv_b_lora_out_features = None
+        wq_b_lora_in_features = None
+        wq_b_lora_out_features = None
+        if ("attn_kv_a_mqa" in lora_config.lora_target_modules
+                or "attn_kv_b_proj" in lora_config.lora_target_modules
+                or "attn_wq_b" in lora_config.lora_target_modules):
             pretrained_config = model_engine.model.model_config.pretrained_config
             kv_lora_rank = getattr(pretrained_config, "kv_lora_rank", None)
+            q_lora_rank = getattr(pretrained_config, "q_lora_rank", None)
+            qk_nope_head_dim = getattr(pretrained_config, "qk_nope_head_dim",
+                                       None)
             qk_rope_head_dim = getattr(pretrained_config, "qk_rope_head_dim",
                                        None)
-            if kv_lora_rank is None or qk_rope_head_dim is None:
-                raise ValueError(
-                    "attn_kv_a_mqa requires kv_lora_rank and qk_rope_head_dim in pretrained_config"
-                )
-            kv_a_lora_out_features = kv_lora_rank + qk_rope_head_dim
-            q_lora_rank = getattr(pretrained_config, "q_lora_rank", None)
-            if q_lora_rank is not None:
-                kv_a_lora_out_features += q_lora_rank
-            index_head_dim = getattr(pretrained_config, "index_head_dim", None)
-            if index_head_dim is not None:
-                kv_a_lora_out_features += index_head_dim
+            v_head_dim = getattr(pretrained_config, "v_head_dim", None)
+
+            if "attn_kv_a_mqa" in lora_config.lora_target_modules:
+                if kv_lora_rank is None or qk_rope_head_dim is None:
+                    raise ValueError(
+                        "attn_kv_a_mqa requires kv_lora_rank and qk_rope_head_dim in pretrained_config"
+                    )
+                kv_a_lora_out_features = kv_lora_rank + qk_rope_head_dim
+                if q_lora_rank is not None:
+                    kv_a_lora_out_features += q_lora_rank
+                index_head_dim = getattr(pretrained_config, "index_head_dim",
+                                         None)
+                if index_head_dim is not None:
+                    kv_a_lora_out_features += index_head_dim
+
+            num_heads = model_binding_config.num_heads * mapping.tp_size
+            if "attn_kv_b_proj" in lora_config.lora_target_modules:
+                if kv_lora_rank is None or qk_nope_head_dim is None or v_head_dim is None:
+                    raise ValueError(
+                        "attn_kv_b_proj requires kv_lora_rank, qk_nope_head_dim, and v_head_dim in pretrained_config"
+                    )
+                kv_b_lora_in_features = kv_lora_rank
+                kv_b_lora_out_features = num_heads * (qk_nope_head_dim +
+                                                     v_head_dim)
+
+            if "attn_wq_b" in lora_config.lora_target_modules:
+                if q_lora_rank is None or qk_nope_head_dim is None or qk_rope_head_dim is None:
+                    raise ValueError(
+                        "attn_wq_b requires q_lora_rank, qk_nope_head_dim, and qk_rope_head_dim in pretrained_config"
+                    )
+                wq_b_lora_in_features = q_lora_rank
+                wq_b_lora_out_features = num_heads * (qk_nope_head_dim +
+                                                      qk_rope_head_dim)
 
         lora_modules = LoraModule.create_lora_modules(
             lora_module_names=lora_config.lora_target_modules,
@@ -815,7 +846,11 @@ def create_py_executor_instance(
             attention_head_size=model_binding_config.head_size,
             tp_size=mapping.tp_size,
             num_experts=num_experts,
-            kv_a_lora_out_features=kv_a_lora_out_features)
+            kv_a_lora_out_features=kv_a_lora_out_features,
+            kv_b_lora_in_features=kv_b_lora_in_features,
+            kv_b_lora_out_features=kv_b_lora_out_features,
+            wq_b_lora_in_features=wq_b_lora_in_features,
+            wq_b_lora_out_features=wq_b_lora_out_features)
         model_binding_config.use_lora_plugin = True
         model_binding_config.lora_modules = lora_modules
         model_binding_config.max_lora_rank = lora_config.max_lora_rank

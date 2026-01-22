@@ -659,6 +659,8 @@ class LoraManager(object):
         "mlp_router": 17,
         "mlp_gate_up": 18,
         "attn_kv_a_mqa": 19,
+        "attn_kv_b_proj": 20,
+        "attn_wq_b": 21,
     }
 
     def __init__(
