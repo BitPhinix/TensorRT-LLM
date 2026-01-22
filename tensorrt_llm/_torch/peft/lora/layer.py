@@ -33,6 +33,7 @@ class LoraModuleType(IntEnum):
 
     MLP_ROUTER = 17  # MLP router
     MLP_GATE_UP = 18  # Combined gate and up projections
+    
     ATTENTION_KV_A_MQA = 19  # DeepSeek V3/V3.2 kv_a_proj_with_mqa projection
     ATTENTION_KV_B_PROJ = 20  # MLA kv_b_proj projection
     ATTENTION_WQ_B = 21  # MLA q_b_proj projection (HF: wq_b)
